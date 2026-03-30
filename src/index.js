@@ -91,16 +91,35 @@ client.on('messageCreate', async (message) => {
       isDM,
     });
 
+    // Generate contextual response based on message content
+    const getResponse = (content) => {
+      const lower = content.toLowerCase();
+      
+      // Simple responses based on keywords
+      if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) {
+        return `Hey! What's up? How can I help?`;
+      } else if (lower.includes('name') || lower.includes('who are you')) {
+        return `I'm Asher AI, here to help with Southern Cities Enterprises.`;
+      } else if (lower.includes('help')) {
+        return `I'm here to assist with Southern Cities tasks. What do you need?`;
+      } else if (lower.includes('thanks') || lower.includes('thank you')) {
+        return `You got it! Let me know if you need anything else.`;
+      } else {
+        return `Got it. I'm ready to help with that.`;
+      }
+    };
+
     // Respond to DMs only
     if (isDM) {
-      await message.channel.send(`Got it. I'm ready to help with Southern Cities Enterprises tasks.`);
+      const response = getResponse(message.content);
+      await message.channel.send(response);
       
       logInteraction({
         type: 'RESPONSE',
         user: message.author.username,
         userId: message.author.id,
         channel: 'DM',
-        message: `Responded to DM`,
+        message: `Responded to DM: "${message.content}"`,
       });
       return;
     }
@@ -112,7 +131,8 @@ client.on('messageCreate', async (message) => {
       
       // Respond to all messages in 1-on-1 group chats (user + bot only)
       if (isPrivateGroupChat) {
-        await message.channel.send(`Got it. I'm ready to help.`);
+        const response = getResponse(message.content);
+        await message.channel.send(response);
         
         logInteraction({
           type: 'RESPONSE',
@@ -127,7 +147,8 @@ client.on('messageCreate', async (message) => {
       
       // In larger groups/channels: respond only when mentioned
       if (isMentioned) {
-        await message.channel.send(`Got it. I'm ready to help.`);
+        const response = getResponse(message.content);
+        await message.channel.send(response);
         
         logInteraction({
           type: 'RESPONSE',
