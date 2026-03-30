@@ -17,16 +17,12 @@ const APP_ID = process.env.DISCORD_APP_ID;
 const LOG_DIR = process.env.LOG_DIR || './logs';
 const BOT_NAME = 'Asher AI';
 const OWNER = 'Darius Walton / Southern Cities Enterprises';
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-
 console.log('🔧 Config loaded:');
 console.log(`   Discord Token: ${TOKEN ? '✓' : '✗'}`);
-console.log(`   Anthropic Key: ${ANTHROPIC_KEY ? '✓' : '✗'}`);
+console.log(`   Anthropic Key: ${process.env.ANTHROPIC_API_KEY ? '✓' : '✗'}`);
 
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: ANTHROPIC_KEY,
-});
+// Initialize Anthropic client (use environment variable automatically)
+const anthropic = new Anthropic();
 
 // Ensure logs directory exists
 if (!existsSync(LOG_DIR)) {
