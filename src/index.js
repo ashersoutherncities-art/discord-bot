@@ -200,7 +200,15 @@ client.on('messageCreate', async (message) => {
       // Debug logging
       console.log(`[DEBUG] Channel: #${channelName}, Members: ${memberCount}, Auto-respond: ${isAutoRespondChannel}, MentionOnly: ${isMentionOnlyChannel}, PrivateGroup: ${isPrivateGroupChat}`);
       
-      // PRIORITY 1: Respond to ALL messages in auto-respond channels FIRST
+      // PRIORITY 0: Mention-only channels - respond ONLY when mentioned (CHECK FIRST!)
+      if (isMentionOnlyChannel) {
+        if (!isMentioned) {
+          return; // Silently ignore messages not mentioning the bot
+        }
+        // If mentioned, continue to respond below
+      }
+      
+      // PRIORITY 1: Respond to ALL messages in auto-respond channels
       if (isAutoRespondChannel) {
         const response = await getResponse(message.content);
         await message.channel.send(response);
@@ -232,15 +240,7 @@ client.on('messageCreate', async (message) => {
         return;
       }
       
-      // PRIORITY 3: Mention-only channels - respond ONLY when mentioned
-      if (isMentionOnlyChannel) {
-        if (!isMentioned) {
-          return; // Silently ignore messages not mentioning the bot
-        }
-        // If mentioned, continue to respond below
-      }
-      
-      // PRIORITY 4: In larger groups/channels: respond only when mentioned
+      // PRIORITY 3: In larger groups/channels: respond only when mentioned
       if (isMentioned) {
         const response = await getResponse(message.content);
         await message.channel.send(response);
