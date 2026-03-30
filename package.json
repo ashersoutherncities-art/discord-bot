@@ -1,0 +1,23 @@
+{
+  "name": "asher-discord-bot",
+  "version": "1.0.0",
+  "description": "Asher AI - Discord bot for Southern Cities Enterprises",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "NODE_ENV=development node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "asher"
+  ],
+  "author": "Darius Walton",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.0",
+    "dotenv": "^16.3.1"
+  }
+}
