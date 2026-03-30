@@ -233,12 +233,15 @@ client.on('messageCreate', async (message) => {
       }
       
       // PRIORITY 3: Mention-only channels - respond ONLY when mentioned
-      if (isMentionOnlyChannel && !isMentioned) {
-        return; // Silently ignore messages not mentioning the bot
+      if (isMentionOnlyChannel) {
+        if (!isMentioned) {
+          return; // Silently ignore messages not mentioning the bot
+        }
+        // If mentioned, continue to respond below
       }
       
-      // In larger groups/channels: respond only when mentioned
-      if (isMentioned || isMentionOnlyChannel) {
+      // PRIORITY 4: In larger groups/channels: respond only when mentioned
+      if (isMentioned) {
         const response = await getResponse(message.content);
         await message.channel.send(response);
         
