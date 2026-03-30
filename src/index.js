@@ -97,13 +97,13 @@ client.on('messageCreate', async (message) => {
       isDM,
     });
 
-    // Generate response using Claude API
+    // Generate response using Claude API (Opus for superior quality)
     const getResponse = async (content) => {
       try {
         const message = await anthropic.messages.create({
-          model: 'claude-3-5-sonnet-20241022',
-          max_tokens: 1024,
-          system: `You are Asher AI, a helpful assistant for Southern Cities Enterprises owned by Darius Walton. You help with business tasks, general questions, and Southern Cities operations. Be concise, friendly, and helpful. Keep responses short (1-3 sentences max for Discord).`,
+          model: 'claude-opus-4-6-20250514',
+          max_tokens: 512,
+          system: `You are Asher AI, a helpful assistant for Southern Cities Enterprises owned by Darius Walton. You help with business tasks, general questions, and Southern Cities operations. Be concise, friendly, and helpful. Keep responses short (1-3 sentences max for Discord). Be direct and actionable.`,
           messages: [
             {
               role: 'user',
