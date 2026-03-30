@@ -29,44 +29,54 @@ console.log(`   Discord Token: ${TOKEN ? '✓' : '✗'}`);
 console.log(`   Anthropic Key: ${process.env.ANTHROPIC_API_KEY ? '✓' : '✗'}`);
 console.log(`   Auto-respond channels: ${AUTO_RESPOND_CHANNELS.join(', ')}`);
 
-// Restore Anthropic import
-const Anthropic = (await import('@anthropic-ai/sdk')).default;
-
-// Initialize Anthropic client  
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-// Get Claude response - try multiple model names
+// Route through OpenClaw Gateway for authenticated Claude access
 async function getClaudeResponse(userMessage) {
-  const modelsToTry = [
-    'claude-opus-4-6-20250514',
-    'claude-opus-4',
-    'claude-3-opus-20240229',
-  ];
-  
-  for (const model of modelsToTry) {
-    try {
-      const response = await anthropic.messages.create({
-        model,
+  try {
+    // Read OpenClaw gateway token from config
+    const fs = await import('fs');
+    const opencrawConfig = JSON.parse(fs.readFileSync('/Users/ashborn/.openclaw/openclaw.json', 'utf8'));
+    const gatewayToken = opencrawConfig.gateway?.auth?.token;
+    
+    if (!gatewayToken) {
+      console.error('Gateway token not found in openclaw.json');
+      return null;
+    }
+    
+    // Call OpenClaw Gateway's authenticated Claude endpoint
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch('http://127.0.0.1:18789/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${gatewayToken}`,
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-6',
         max_tokens: 200,
         system: 'You are Asher AI for Southern Cities Enterprises. Keep responses brief (1-2 sentences max). Be direct about acquisitions and deals.',
         messages: [{ role: 'user', content: userMessage }],
-      });
-      
-      const text = response.content[0].type === 'text' ? response.content[0].text : null;
-      if (text) {
-        console.log(`[Claude] Used model: ${model}`);
-        return text;
-      }
-    } catch (error) {
-      console.log(`Model ${model} failed:`, error.message);
-      continue;
+      }),
+      timeout: 15000,
+    });
+    
+    if (!response.ok) {
+      console.log(`Gateway error: ${response.status} ${response.statusText}`);
+      return null;
     }
+    
+    const data = await response.json();
+    const text = data.content?.[0]?.text;
+    
+    if (text) {
+      console.log(`[Claude via Gateway] Success`);
+      return text;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Claude via gateway failed:', error.message);
+    return null;
   }
-  
-  console.error('All Claude models failed');
-  return null;
 }
 
 // Ensure logs directory exists
