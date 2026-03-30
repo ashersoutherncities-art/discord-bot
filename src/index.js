@@ -145,7 +145,7 @@ client.on('messageCreate', async (message) => {
 
     // Generate response using OpenClaw's authenticated Claude
     const getResponse = async (content, allowFallback = true) => {
-      // Try OpenClaw first
+      // Try Claude via Anthropic SDK
       const claudeResponse = await getClaudeResponse(
         `You are Asher AI, assistant for Southern Cities Enterprises. Keep response brief (1-2 sentences max for Discord). Be direct and actionable about acquisitions, deals, and properties. User message: "${content}"`
       );
@@ -154,29 +154,16 @@ client.on('messageCreate', async (message) => {
         return claudeResponse;
       }
       
-      // If no fallback allowed (mention-only channels), return null
+      // If Claude failed and no fallback allowed, return null (stay silent)
       if (!allowFallback) {
+        console.log(`[Silent] No response (Claude unavailable, fallback disabled)`);
         return null;
       }
       
-      // Fallback contextual responses (for auto-respond channels only)
-      const lower = content.toLowerCase();
-      
-      if (lower.includes('hi') || lower.includes('hey') || lower.includes('hello')) {
-        return `👋 Hey! What's the latest on acquisitions?`;
-      }
-      if (lower.includes('deal') || lower.includes('property') || lower.includes('arv')) {
-        return `📊 Got it. Running analysis... What details do you have on that?`;
-      }
-      if (lower.includes('thanks') || lower.includes('thank')) {
-        return `✅ You got it! Anything else?`;
-      }
-      if (lower.includes('help') || lower.includes('how')) {
-        return `🤝 I'm here to help with deal analysis, property research, and acquisition strategy. What do you need?`;
-      }
-      
-      // Default response
-      return `👂 I'm listening. Tell me more about this acquisition.`;
+      // If Claude failed and no fallback allowed in private chats either, stay silent
+      // Only use fallback if explicitly enabled AND Claude is working
+      console.log(`[Silent] Claude failed - no fallback response`);
+      return null;
     };
 
     // Respond to DMs only
