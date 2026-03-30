@@ -17,10 +17,15 @@ const APP_ID = process.env.DISCORD_APP_ID;
 const LOG_DIR = process.env.LOG_DIR || './logs';
 const BOT_NAME = 'Asher AI';
 const OWNER = 'Darius Walton / Southern Cities Enterprises';
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+
+console.log('🔧 Config loaded:');
+console.log(`   Discord Token: ${TOKEN ? '✓' : '✗'}`);
+console.log(`   Anthropic Key: ${ANTHROPIC_KEY ? '✓' : '✗'}`);
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: ANTHROPIC_KEY,
 });
 
 // Ensure logs directory exists
@@ -101,7 +106,7 @@ client.on('messageCreate', async (message) => {
     const getResponse = async (content) => {
       try {
         const message = await anthropic.messages.create({
-          model: 'claude-opus-4-6',
+          model: 'claude-sonnet-4-6',
           max_tokens: 512,
           system: `You are Asher AI, a helpful assistant for Southern Cities Enterprises owned by Darius Walton. You help with business tasks, general questions, and Southern Cities operations. Be concise, friendly, and helpful. Keep responses short (1-3 sentences max for Discord). Be direct and actionable.`,
           messages: [
