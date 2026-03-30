@@ -1,5 +1,5 @@
 import { Client, GatewayIntentBits, ChannelType, EmbedBuilder } from 'discord.js';
-import { Anthropic } from '@anthropic-ai/sdk';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import dotenv from 'dotenv';
@@ -19,15 +19,25 @@ const BOT_NAME = 'Asher AI';
 const OWNER = 'Darius Walton / Southern Cities Enterprises';
 
 // Channels where bot responds to ALL messages without mentions
-const AUTO_RESPOND_CHANNELS = ['sce-acquisitions'];
+const AUTO_RESPOND_CHANNELS = ['sci-acquisitions'];
 
 console.log('🔧 Config loaded:');
 console.log(`   Discord Token: ${TOKEN ? '✓' : '✗'}`);
 console.log(`   Anthropic Key: ${process.env.ANTHROPIC_API_KEY ? '✓' : '✗'}`);
 console.log(`   Auto-respond channels: ${AUTO_RESPOND_CHANNELS.join(', ')}`);
 
-// Initialize Anthropic client
-const anthropic = new Anthropic();
+// OpenClaw session helper - spawn authenticated Claude session
+async function getClaudeResponse(userMessage) {
+  try {
+    // Use OpenClaw to spawn an authenticated Claude session
+    const command = `echo '${userMessage.replace(/'/g, "'\\''")}' | openclaw agent --model claude-opus-4-6 --print 2>/dev/null || echo "Claude unavailable - using fallback"`;
+    const response = execSync(command, { encoding: 'utf-8', timeout: 10000 });
+    return response.trim();
+  } catch (error) {
+    console.error('OpenClaw session error:', error.message);
+    return null;
+  }
+}
 
 // Ensure logs directory exists
 if (!existsSync(LOG_DIR)) {
@@ -103,26 +113,35 @@ client.on('messageCreate', async (message) => {
       isDM,
     });
 
-    // Generate response using Claude API (Opus for superior quality)
+    // Generate response using OpenClaw's authenticated Claude
     const getResponse = async (content) => {
-      try {
-        const message = await anthropic.messages.create({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 512,
-          system: `You are Asher AI, a helpful assistant for Southern Cities Enterprises owned by Darius Walton. You help with business tasks, general questions, and Southern Cities operations. Be concise, friendly, and helpful. Keep responses short (1-3 sentences max for Discord). Be direct and actionable.`,
-          messages: [
-            {
-              role: 'user',
-              content: content,
-            },
-          ],
-        });
-        
-        return message.content[0].text;
-      } catch (error) {
-        console.error('Claude API error:', error);
-        return 'I encountered an error processing your request. Please try again.';
+      // Try OpenClaw first
+      const claudeResponse = await getClaudeResponse(
+        `You are Asher AI, assistant for Southern Cities Enterprises. Keep response brief (1-2 sentences max for Discord). Be direct and actionable about acquisitions, deals, and properties. User message: "${content}"`
+      );
+      
+      if (claudeResponse && !claudeResponse.includes('unavailable')) {
+        return claudeResponse;
       }
+      
+      // Fallback contextual responses
+      const lower = content.toLowerCase();
+      
+      if (lower.includes('hi') || lower.includes('hey') || lower.includes('hello')) {
+        return `👋 Hey! What's the latest on acquisitions?`;
+      }
+      if (lower.includes('deal') || lower.includes('property') || lower.includes('arv')) {
+        return `📊 Got it. Running analysis... What details do you have on that?`;
+      }
+      if (lower.includes('thanks') || lower.includes('thank')) {
+        return `✅ You got it! Anything else?`;
+      }
+      if (lower.includes('help') || lower.includes('how')) {
+        return `🤝 I'm here to help with deal analysis, property research, and acquisition strategy. What do you need?`;
+      }
+      
+      // Default response
+      return `👂 I'm listening. Tell me more about this acquisition.`;
     };
 
     // Respond to DMs only
@@ -146,6 +165,9 @@ client.on('messageCreate', async (message) => {
       const isPrivateGroupChat = memberCount === 2; // Just user + bot
       const channelName = message.channel.name || '';
       const isAutoRespondChannel = AUTO_RESPOND_CHANNELS.includes(channelName);
+      
+      // Debug logging
+      console.log(`[DEBUG] Channel: #${channelName}, Members: ${memberCount}, Auto-respond: ${isAutoRespondChannel}`);
       
       // Respond to all messages in 1-on-1 group chats (user + bot only)
       if (isPrivateGroupChat) {
