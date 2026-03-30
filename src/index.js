@@ -29,52 +29,29 @@ console.log(`   Discord Token: ${TOKEN ? '✓' : '✗'}`);
 console.log(`   Anthropic Key: ${process.env.ANTHROPIC_API_KEY ? '✓' : '✗'}`);
 console.log(`   Auto-respond channels: ${AUTO_RESPOND_CHANNELS.join(', ')}`);
 
-// Route through OpenClaw Gateway for authenticated Claude access
+// Get Claude response - returns null if API fails (no fallback)
 async function getClaudeResponse(userMessage) {
   try {
-    // Read OpenClaw gateway token from config
-    const fs = await import('fs');
-    const opencrawConfig = JSON.parse(fs.readFileSync('/Users/ashborn/.openclaw/openclaw.json', 'utf8'));
-    const gatewayToken = opencrawConfig.gateway?.auth?.token;
-    
-    if (!gatewayToken) {
-      console.error('Gateway token not found in openclaw.json');
-      return null;
-    }
-    
-    // Call OpenClaw Gateway's authenticated Claude endpoint
-    const fetch = (await import('node-fetch')).default;
-    const response = await fetch('http://127.0.0.1:18789/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${gatewayToken}`,
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-6',
-        max_tokens: 200,
-        system: 'You are Asher AI for Southern Cities Enterprises. Keep responses brief (1-2 sentences max). Be direct about acquisitions and deals.',
-        messages: [{ role: 'user', content: userMessage }],
-      }),
-      timeout: 15000,
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
     });
     
-    if (!response.ok) {
-      console.log(`Gateway error: ${response.status} ${response.statusText}`);
-      return null;
-    }
+    const response = await anthropic.messages.create({
+      model: 'claude-opus-4-6',
+      max_tokens: 200,
+      system: 'You are Asher AI for Southern Cities Enterprises. Keep responses brief (1-2 sentences max). Be direct about acquisitions and deals.',
+      messages: [{ role: 'user', content: userMessage }],
+    });
     
-    const data = await response.json();
-    const text = data.content?.[0]?.text;
-    
+    const text = response.content[0]?.type === 'text' ? response.content[0].text : null;
     if (text) {
-      console.log(`[Claude via Gateway] Success`);
+      console.log(`[Claude] Success`);
       return text;
     }
-    
     return null;
   } catch (error) {
-    console.error('Claude via gateway failed:', error.message);
+    console.log(`Claude API error: ${error.message}`);
     return null;
   }
 }
@@ -179,15 +156,16 @@ client.on('messageCreate', async (message) => {
     // Respond to DMs only
     if (isDM) {
       const response = await getResponse(message.content);
-      await message.channel.send(response);
-      
-      logInteraction({
-        type: 'RESPONSE',
-        user: message.author.username,
-        userId: message.author.id,
-        channel: 'DM',
-        message: `Responded to DM: "${message.content}"`,
-      });
+      if (response) {
+        await message.channel.send(response);
+        logInteraction({
+          type: 'RESPONSE',
+          user: message.author.username,
+          userId: message.author.id,
+          channel: 'DM',
+          message: `Responded to DM: "${message.content}"`,
+        });
+      }
       return;
     }
 
@@ -224,32 +202,34 @@ client.on('messageCreate', async (message) => {
       // PRIORITY 1: Respond to ALL messages in auto-respond channels
       if (isAutoRespondChannel) {
         const response = await getResponse(message.content);
-        await message.channel.send(response);
-        
-        logInteraction({
-          type: 'RESPONSE',
-          user: message.author.username,
-          userId: message.author.id,
-          channel: message.guild.name,
-          channelId: message.channel.id,
-          message: `Responded to all messages in auto-respond channel: #${channelName}`,
-        });
+        if (response) {
+          await message.channel.send(response);
+          logInteraction({
+            type: 'RESPONSE',
+            user: message.author.username,
+            userId: message.author.id,
+            channel: message.guild.name,
+            channelId: message.channel.id,
+            message: `Responded to all messages in auto-respond channel: #${channelName}`,
+          });
+        }
         return;
       }
       
       // PRIORITY 2: Respond to all messages in 1-on-1 group chats (user + bot only)
       if (isPrivateGroupChat) {
         const response = await getResponse(message.content);
-        await message.channel.send(response);
-        
-        logInteraction({
-          type: 'RESPONSE',
-          user: message.author.username,
-          userId: message.author.id,
-          channel: message.guild.name,
-          channelId: message.channel.id,
-          message: `Responded to all messages in private group (${memberCount} members)`,
-        });
+        if (response) {
+          await message.channel.send(response);
+          logInteraction({
+            type: 'RESPONSE',
+            user: message.author.username,
+            userId: message.author.id,
+            channel: message.guild.name,
+            channelId: message.channel.id,
+            message: `Responded to all messages in private group (${memberCount} members)`,
+          });
+        }
         return;
       }
       
@@ -262,16 +242,15 @@ client.on('messageCreate', async (message) => {
         // Only send if we got a real response (not null)
         if (response) {
           await message.channel.send(response);
+          logInteraction({
+            type: 'RESPONSE',
+            user: message.author.username,
+            userId: message.author.id,
+            channel: message.guild.name,
+            channelId: message.channel.id,
+            message: `Responded to mention in group (${memberCount} members)`,
+          });
         }
-        
-        logInteraction({
-          type: 'RESPONSE',
-          user: message.author.username,
-          userId: message.author.id,
-          channel: message.guild.name,
-          channelId: message.channel.id,
-          message: `Responded to mention in group (${memberCount} members)`,
-        });
       }
     }
   } catch (error) {
