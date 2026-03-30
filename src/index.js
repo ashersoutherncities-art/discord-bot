@@ -93,10 +93,7 @@ client.on('messageCreate', async (message) => {
 
     // Respond to DMs only
     if (isDM) {
-      const response = createResponse(message.content);
-      await message.channel.send({
-        embeds: [response],
-      });
+      await message.channel.send(`Got it. I'm ready to help with Southern Cities Enterprises tasks.`);
       
       logInteraction({
         type: 'RESPONSE',
@@ -115,10 +112,7 @@ client.on('messageCreate', async (message) => {
       
       // Respond to all messages in 1-on-1 group chats (user + bot only)
       if (isPrivateGroupChat) {
-        const response = createResponse(message.content);
-        await message.channel.send({
-          embeds: [response],
-        });
+        await message.channel.send(`Got it. I'm ready to help.`);
         
         logInteraction({
           type: 'RESPONSE',
@@ -133,10 +127,7 @@ client.on('messageCreate', async (message) => {
       
       // In larger groups/channels: respond only when mentioned
       if (isMentioned) {
-        const response = createResponse(message.content);
-        await message.channel.send({
-          embeds: [response],
-        });
+        await message.channel.send(`Got it. I'm ready to help.`);
         
         logInteraction({
           type: 'RESPONSE',
