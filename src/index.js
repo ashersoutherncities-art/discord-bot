@@ -109,22 +109,47 @@ client.on('messageCreate', async (message) => {
       return;
     }
 
-    // Respond to group mentions only
-    if (isMentioned && message.guild) {
-      const response = createResponse(message.content);
-      await message.reply({
-        embeds: [response],
-        allowedMentions: { repliedUser: false },
-      });
+    // Handle group chats and channels
+    if (message.guild) {
+      const memberCount = message.channel.members ? message.channel.members.size : null;
+      const isPrivateGroupChat = memberCount === 2; // Just user + bot
       
-      logInteraction({
-        type: 'RESPONSE',
-        user: message.author.username,
-        userId: message.author.id,
-        channel: message.guild.name,
-        channelId: message.channel.id,
-        message: `Responded to mention in ${message.guild.name}`,
-      });
+      // Respond to all messages in 1-on-1 group chats (user + bot only)
+      if (isPrivateGroupChat) {
+        const response = createResponse(message.content);
+        await message.reply({
+          embeds: [response],
+          allowedMentions: { repliedUser: false },
+        });
+        
+        logInteraction({
+          type: 'RESPONSE',
+          user: message.author.username,
+          userId: message.author.id,
+          channel: message.guild.name,
+          channelId: message.channel.id,
+          message: `Responded to all messages in private group (${memberCount} members)`,
+        });
+        return;
+      }
+      
+      // In larger groups/channels: respond only when mentioned
+      if (isMentioned) {
+        const response = createResponse(message.content);
+        await message.reply({
+          embeds: [response],
+          allowedMentions: { repliedUser: false },
+        });
+        
+        logInteraction({
+          type: 'RESPONSE',
+          user: message.author.username,
+          userId: message.author.id,
+          channel: message.guild.name,
+          channelId: message.channel.id,
+          message: `Responded to mention in group (${memberCount} members)`,
+        });
+      }
     }
   } catch (error) {
     console.error('Error handling message:', error);
