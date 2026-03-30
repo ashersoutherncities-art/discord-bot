@@ -144,7 +144,7 @@ client.on('messageCreate', async (message) => {
     });
 
     // Generate response using OpenClaw's authenticated Claude
-    const getResponse = async (content) => {
+    const getResponse = async (content, allowFallback = true) => {
       // Try OpenClaw first
       const claudeResponse = await getClaudeResponse(
         `You are Asher AI, assistant for Southern Cities Enterprises. Keep response brief (1-2 sentences max for Discord). Be direct and actionable about acquisitions, deals, and properties. User message: "${content}"`
@@ -154,7 +154,12 @@ client.on('messageCreate', async (message) => {
         return claudeResponse;
       }
       
-      // Fallback contextual responses
+      // If no fallback allowed (mention-only channels), return null
+      if (!allowFallback) {
+        return null;
+      }
+      
+      // Fallback contextual responses (for auto-respond channels only)
       const lower = content.toLowerCase();
       
       if (lower.includes('hi') || lower.includes('hey') || lower.includes('hello')) {
@@ -253,8 +258,14 @@ client.on('messageCreate', async (message) => {
       
       // PRIORITY 3: In larger groups/channels: respond only when mentioned
       if (isMentioned) {
-        const response = await getResponse(message.content);
-        await message.channel.send(response);
+        // For mention-only channels, don't use fallback responses
+        const allowFallback = !isMentionOnlyChannel;
+        const response = await getResponse(message.content, allowFallback);
+        
+        // Only send if we got a real response (not null)
+        if (response) {
+          await message.channel.send(response);
+        }
         
         logInteraction({
           type: 'RESPONSE',
