@@ -21,22 +21,52 @@ const OWNER = 'Darius Walton / Southern Cities Enterprises';
 // Channels where bot responds to ALL messages without mentions
 const AUTO_RESPOND_CHANNELS = ['sci-acquisitions'];
 
+// Channels where bot only responds when mentioned
+const MENTION_ONLY_CHANNELS = ['relationship-notes'];
+
 console.log('🔧 Config loaded:');
 console.log(`   Discord Token: ${TOKEN ? '✓' : '✗'}`);
 console.log(`   Anthropic Key: ${process.env.ANTHROPIC_API_KEY ? '✓' : '✗'}`);
 console.log(`   Auto-respond channels: ${AUTO_RESPOND_CHANNELS.join(', ')}`);
 
-// OpenClaw session helper - spawn authenticated Claude session
+// Restore Anthropic import
+const Anthropic = (await import('@anthropic-ai/sdk')).default;
+
+// Initialize Anthropic client  
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+// Get Claude response - try multiple model names
 async function getClaudeResponse(userMessage) {
-  try {
-    // Use OpenClaw to spawn an authenticated Claude session
-    const command = `echo '${userMessage.replace(/'/g, "'\\''")}' | openclaw agent --model claude-opus-4-6 --print 2>/dev/null || echo "Claude unavailable - using fallback"`;
-    const response = execSync(command, { encoding: 'utf-8', timeout: 10000 });
-    return response.trim();
-  } catch (error) {
-    console.error('OpenClaw session error:', error.message);
-    return null;
+  const modelsToTry = [
+    'claude-opus-4-6-20250514',
+    'claude-opus-4',
+    'claude-3-opus-20240229',
+  ];
+  
+  for (const model of modelsToTry) {
+    try {
+      const response = await anthropic.messages.create({
+        model,
+        max_tokens: 200,
+        system: 'You are Asher AI for Southern Cities Enterprises. Keep responses brief (1-2 sentences max). Be direct about acquisitions and deals.',
+        messages: [{ role: 'user', content: userMessage }],
+      });
+      
+      const text = response.content[0].type === 'text' ? response.content[0].text : null;
+      if (text) {
+        console.log(`[Claude] Used model: ${model}`);
+        return text;
+      }
+    } catch (error) {
+      console.log(`Model ${model} failed:`, error.message);
+      continue;
+    }
   }
+  
+  console.error('All Claude models failed');
+  return null;
 }
 
 // Ensure logs directory exists
@@ -162,30 +192,15 @@ client.on('messageCreate', async (message) => {
     // Handle group chats and channels
     if (message.guild) {
       const memberCount = message.channel.members ? message.channel.members.size : null;
-      const isPrivateGroupChat = memberCount === 2; // Just user + bot
       const channelName = message.channel.name || '';
       const isAutoRespondChannel = AUTO_RESPOND_CHANNELS.includes(channelName);
+      const isMentionOnlyChannel = MENTION_ONLY_CHANNELS.includes(channelName);
+      const isPrivateGroupChat = memberCount === 2; // Just user + bot
       
       // Debug logging
-      console.log(`[DEBUG] Channel: #${channelName}, Members: ${memberCount}, Auto-respond: ${isAutoRespondChannel}`);
+      console.log(`[DEBUG] Channel: #${channelName}, Members: ${memberCount}, Auto-respond: ${isAutoRespondChannel}, MentionOnly: ${isMentionOnlyChannel}, PrivateGroup: ${isPrivateGroupChat}`);
       
-      // Respond to all messages in 1-on-1 group chats (user + bot only)
-      if (isPrivateGroupChat) {
-        const response = await getResponse(message.content);
-        await message.channel.send(response);
-        
-        logInteraction({
-          type: 'RESPONSE',
-          user: message.author.username,
-          userId: message.author.id,
-          channel: message.guild.name,
-          channelId: message.channel.id,
-          message: `Responded to all messages in private group (${memberCount} members)`,
-        });
-        return;
-      }
-      
-      // Respond to ALL messages in auto-respond channels
+      // PRIORITY 1: Respond to ALL messages in auto-respond channels FIRST
       if (isAutoRespondChannel) {
         const response = await getResponse(message.content);
         await message.channel.send(response);
@@ -201,8 +216,29 @@ client.on('messageCreate', async (message) => {
         return;
       }
       
+      // PRIORITY 2: Respond to all messages in 1-on-1 group chats (user + bot only)
+      if (isPrivateGroupChat) {
+        const response = await getResponse(message.content);
+        await message.channel.send(response);
+        
+        logInteraction({
+          type: 'RESPONSE',
+          user: message.author.username,
+          userId: message.author.id,
+          channel: message.guild.name,
+          channelId: message.channel.id,
+          message: `Responded to all messages in private group (${memberCount} members)`,
+        });
+        return;
+      }
+      
+      // PRIORITY 3: Mention-only channels - respond ONLY when mentioned
+      if (isMentionOnlyChannel && !isMentioned) {
+        return; // Silently ignore messages not mentioning the bot
+      }
+      
       // In larger groups/channels: respond only when mentioned
-      if (isMentioned) {
+      if (isMentioned || isMentionOnlyChannel) {
         const response = await getResponse(message.content);
         await message.channel.send(response);
         
