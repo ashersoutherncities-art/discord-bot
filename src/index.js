@@ -101,7 +101,7 @@ client.on('messageCreate', async (message) => {
     const getResponse = async (content) => {
       try {
         const message = await anthropic.messages.create({
-          model: 'claude-opus-4-6-20250514',
+          model: 'claude-opus-4-1-20250514',
           max_tokens: 512,
           system: `You are Asher AI, a helpful assistant for Southern Cities Enterprises owned by Darius Walton. You help with business tasks, general questions, and Southern Cities operations. Be concise, friendly, and helpful. Keep responses short (1-3 sentences max for Discord). Be direct and actionable.`,
           messages: [
