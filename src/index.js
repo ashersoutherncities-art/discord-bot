@@ -17,9 +17,14 @@ const APP_ID = process.env.DISCORD_APP_ID;
 const LOG_DIR = process.env.LOG_DIR || './logs';
 const BOT_NAME = 'Asher AI';
 const OWNER = 'Darius Walton / Southern Cities Enterprises';
+
+// Channels where bot responds to ALL messages without mentions
+const AUTO_RESPOND_CHANNELS = ['sce-acquisitions'];
+
 console.log('🔧 Config loaded:');
 console.log(`   Discord Token: ${TOKEN ? '✓' : '✗'}`);
 console.log(`   Anthropic Key: ${process.env.ANTHROPIC_API_KEY ? '✓' : '✗'}`);
+console.log(`   Auto-respond channels: ${AUTO_RESPOND_CHANNELS.join(', ')}`);
 
 // Initialize Anthropic client
 const anthropic = new Anthropic();
@@ -139,6 +144,8 @@ client.on('messageCreate', async (message) => {
     if (message.guild) {
       const memberCount = message.channel.members ? message.channel.members.size : null;
       const isPrivateGroupChat = memberCount === 2; // Just user + bot
+      const channelName = message.channel.name || '';
+      const isAutoRespondChannel = AUTO_RESPOND_CHANNELS.includes(channelName);
       
       // Respond to all messages in 1-on-1 group chats (user + bot only)
       if (isPrivateGroupChat) {
@@ -152,6 +159,22 @@ client.on('messageCreate', async (message) => {
           channel: message.guild.name,
           channelId: message.channel.id,
           message: `Responded to all messages in private group (${memberCount} members)`,
+        });
+        return;
+      }
+      
+      // Respond to ALL messages in auto-respond channels
+      if (isAutoRespondChannel) {
+        const response = await getResponse(message.content);
+        await message.channel.send(response);
+        
+        logInteraction({
+          type: 'RESPONSE',
+          user: message.author.username,
+          userId: message.author.id,
+          channel: message.guild.name,
+          channelId: message.channel.id,
+          message: `Responded to all messages in auto-respond channel: #${channelName}`,
         });
         return;
       }
