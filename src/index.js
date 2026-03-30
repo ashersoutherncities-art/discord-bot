@@ -21,14 +21,8 @@ console.log('🔧 Config loaded:');
 console.log(`   Discord Token: ${TOKEN ? '✓' : '✗'}`);
 console.log(`   Anthropic Key: ${process.env.ANTHROPIC_API_KEY ? '✓' : '✗'}`);
 
-// Initialize Anthropic client via OpenClaw Gateway
-const anthropic = new Anthropic({
-  apiKey: 'gateway',
-  baseURL: 'http://127.0.0.1:18789',
-  defaultHeaders: {
-    'X-OpenClaw-Token': '8e88b984cda5dc536aab06d6f207629019a81d7690507061'
-  }
-});
+// Initialize Anthropic client
+const anthropic = new Anthropic();
 
 // Ensure logs directory exists
 if (!existsSync(LOG_DIR)) {
