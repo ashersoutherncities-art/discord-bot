@@ -202,6 +202,17 @@ client.on('messageCreate', async (message) => {
       
       // PRIORITY 0: Mention-only channels - respond ONLY when mentioned (CHECK FIRST!)
       if (isMentionOnlyChannel) {
+        // Always log messages in mention-only channels
+        logInteraction({
+          type: 'READ',
+          user: message.author.username,
+          userId: message.author.id,
+          channel: message.guild.name,
+          channelId: message.channel.id,
+          message: `[Mention-only] Read in #${channelName}: "${message.content}"`,
+        });
+        
+        // Only respond if mentioned
         if (!isMentioned) {
           return; // Silently ignore messages not mentioning the bot
         }
