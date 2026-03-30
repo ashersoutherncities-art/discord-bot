@@ -1,4 +1,5 @@
 import { Client, GatewayIntentBits, ChannelType, EmbedBuilder } from 'discord.js';
+import { Anthropic } from '@anthropic-ai/sdk';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import dotenv from 'dotenv';
@@ -16,6 +17,11 @@ const APP_ID = process.env.DISCORD_APP_ID;
 const LOG_DIR = process.env.LOG_DIR || './logs';
 const BOT_NAME = 'Asher AI';
 const OWNER = 'Darius Walton / Southern Cities Enterprises';
+
+// Initialize Anthropic client
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
 
 // Ensure logs directory exists
 if (!existsSync(LOG_DIR)) {
@@ -91,27 +97,31 @@ client.on('messageCreate', async (message) => {
       isDM,
     });
 
-    // Generate contextual response based on message content
-    const getResponse = (content) => {
-      const lower = content.toLowerCase();
-      
-      // Simple responses based on keywords
-      if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) {
-        return `Hey! What's up? How can I help?`;
-      } else if (lower.includes('name') || lower.includes('who are you')) {
-        return `I'm Asher AI, here to help with Southern Cities Enterprises.`;
-      } else if (lower.includes('help')) {
-        return `I'm here to assist with Southern Cities tasks. What do you need?`;
-      } else if (lower.includes('thanks') || lower.includes('thank you')) {
-        return `You got it! Let me know if you need anything else.`;
-      } else {
-        return `Got it. I'm ready to help with that.`;
+    // Generate response using Claude API
+    const getResponse = async (content) => {
+      try {
+        const message = await anthropic.messages.create({
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: 1024,
+          system: `You are Asher AI, a helpful assistant for Southern Cities Enterprises owned by Darius Walton. You help with business tasks, general questions, and Southern Cities operations. Be concise, friendly, and helpful. Keep responses short (1-3 sentences max for Discord).`,
+          messages: [
+            {
+              role: 'user',
+              content: content,
+            },
+          ],
+        });
+        
+        return message.content[0].text;
+      } catch (error) {
+        console.error('Claude API error:', error);
+        return 'I encountered an error processing your request. Please try again.';
       }
     };
 
     // Respond to DMs only
     if (isDM) {
-      const response = getResponse(message.content);
+      const response = await getResponse(message.content);
       await message.channel.send(response);
       
       logInteraction({
@@ -131,7 +141,7 @@ client.on('messageCreate', async (message) => {
       
       // Respond to all messages in 1-on-1 group chats (user + bot only)
       if (isPrivateGroupChat) {
-        const response = getResponse(message.content);
+        const response = await getResponse(message.content);
         await message.channel.send(response);
         
         logInteraction({
@@ -147,7 +157,7 @@ client.on('messageCreate', async (message) => {
       
       // In larger groups/channels: respond only when mentioned
       if (isMentioned) {
-        const response = getResponse(message.content);
+        const response = await getResponse(message.content);
         await message.channel.send(response);
         
         logInteraction({
