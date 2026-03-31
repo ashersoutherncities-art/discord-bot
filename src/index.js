@@ -29,19 +29,41 @@ console.log(`   Discord Token: ${TOKEN ? '✓' : '✗'}`);
 console.log(`   Anthropic Key: ${process.env.ANTHROPIC_API_KEY ? '✓' : '✗'}`);
 console.log(`   Auto-respond channels: ${AUTO_RESPOND_CHANNELS.join(', ')}`);
 
-// Get Claude response - returns null if API fails (no fallback)
-async function getClaudeResponse(userMessage) {
+// Get Claude response - supports text + image URLs
+async function getClaudeResponse(userMessage, imageUrls = []) {
   try {
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const anthropic = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
     
+    // Build message content with text and images
+    const content = [];
+    
+    // Add text
+    if (userMessage) {
+      content.push({
+        type: 'text',
+        text: userMessage,
+      });
+    }
+    
+    // Add images
+    for (const url of imageUrls) {
+      content.push({
+        type: 'image',
+        source: {
+          type: 'url',
+          url: url,
+        },
+      });
+    }
+    
     const response = await anthropic.messages.create({
       model: 'claude-opus-4-6',
       max_tokens: 200,
       system: 'You are Asher AI for Southern Cities Enterprises. Keep responses brief (1-2 sentences max). Be direct about acquisitions and deals.',
-      messages: [{ role: 'user', content: userMessage }],
+      messages: [{ role: 'user', content }],
     });
     
     const text = response.content[0]?.type === 'text' ? response.content[0].text : null;
@@ -130,11 +152,23 @@ client.on('messageCreate', async (message) => {
       isDM,
     });
 
-    // Generate response using OpenClaw's authenticated Claude
-    const getResponse = async (content, allowFallback = true) => {
+    // Generate response using Claude - supports images
+    const getResponse = async (content, messageObj, allowFallback = true) => {
+      // Extract image URLs from attachments
+      const imageUrls = [];
+      if (messageObj && messageObj.attachments && messageObj.attachments.size > 0) {
+        for (const att of messageObj.attachments.values()) {
+          // Only include image attachments
+          if (att.contentType && att.contentType.startsWith('image/')) {
+            imageUrls.push(att.url);
+          }
+        }
+      }
+      
       // Try Claude via Anthropic SDK
       const claudeResponse = await getClaudeResponse(
-        `You are Asher AI, assistant for Southern Cities Enterprises. Keep response brief (1-2 sentences max for Discord). Be direct and actionable about acquisitions, deals, and properties. User message: "${content}"`
+        `You are Asher AI, assistant for Southern Cities Enterprises. Keep response brief (1-2 sentences max for Discord). Be direct and actionable about acquisitions, deals, and properties. User message: "${content}"`,
+        imageUrls
       );
       
       if (claudeResponse && !claudeResponse.includes('unavailable')) {
@@ -155,7 +189,7 @@ client.on('messageCreate', async (message) => {
 
     // Respond to DMs only
     if (isDM) {
-      const response = await getResponse(message.content);
+      const response = await getResponse(message.content, message);
       if (response) {
         await message.channel.send(response);
         logInteraction({
@@ -201,7 +235,7 @@ client.on('messageCreate', async (message) => {
       
       // PRIORITY 1: Respond to ALL messages in auto-respond channels
       if (isAutoRespondChannel) {
-        const response = await getResponse(message.content);
+        const response = await getResponse(message.content, message);
         if (response) {
           await message.channel.send(response);
           logInteraction({
@@ -218,7 +252,7 @@ client.on('messageCreate', async (message) => {
       
       // PRIORITY 2: Respond to all messages in 1-on-1 group chats (user + bot only)
       if (isPrivateGroupChat) {
-        const response = await getResponse(message.content);
+        const response = await getResponse(message.content, message);
         if (response) {
           await message.channel.send(response);
           logInteraction({
@@ -237,7 +271,7 @@ client.on('messageCreate', async (message) => {
       if (isMentioned) {
         // For mention-only channels, don't use fallback responses
         const allowFallback = !isMentionOnlyChannel;
-        const response = await getResponse(message.content, allowFallback);
+        const response = await getResponse(message.content, message, allowFallback);
         
         // Only send if we got a real response (not null)
         if (response) {
