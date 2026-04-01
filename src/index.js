@@ -218,15 +218,9 @@ client.on('messageCreate', async (message) => {
         return claudeResponse.substring(0, 2000);
       }
       
-      // If Claude failed and no fallback allowed, return null (stay silent)
-      if (!allowFallback) {
-        console.log(`[Silent] No response (Claude unavailable, fallback disabled)`);
-        return null;
-      }
-      
-      // Fallback: acknowledge the message so user knows bot is working
-      console.log(`[Fallback] Claude failed - using acknowledgment`);
-      return '👂 Still working on this...';
+      // If Claude failed, stay silent (no fallback)
+      console.log(`[Silent] Claude failed - no fallback response`);
+      return null;
     };
 
     // Respond to DMs only
