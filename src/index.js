@@ -5,6 +5,7 @@ import { dirname } from 'path';
 import dotenv from 'dotenv';
 import { appendFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
+import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -29,16 +30,24 @@ console.log(`   Discord Token: ${TOKEN ? '✓' : '✗'}`);
 console.log(`   Anthropic Key: ${process.env.ANTHROPIC_API_KEY ? '✓' : '✗'}`);
 console.log(`   Auto-respond channels: ${AUTO_RESPOND_CHANNELS.join(', ')}`);
 
-// Get Claude response - supports text + image URLs
-async function getClaudeResponse(userMessage, imageUrls = []) {
+// Get Claude response - supports text + image URLs + file content
+async function getClaudeResponse(userMessage, imageUrls = [], fileContent = '') {
   try {
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const anthropic = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
     
-    // Build message content with text and images
+    // Build message content with text, images, and files
     const content = [];
+    
+    // Add file content if present
+    if (fileContent) {
+      content.push({
+        type: 'text',
+        text: `[Attached file content]:\n${fileContent}\n\n---\n\n`,
+      });
+    }
     
     // Add text
     if (userMessage) {
@@ -152,27 +161,61 @@ client.on('messageCreate', async (message) => {
       isDM,
     });
 
-    // Generate response using Claude - supports images
+    // Generate response using Claude - supports images + files
     const getResponse = async (content, messageObj, allowFallback = true) => {
-      // Extract image URLs from attachments
+      // Extract image URLs and file content from attachments
       const imageUrls = [];
+      let fileContent = '';
+      
       if (messageObj && messageObj.attachments && messageObj.attachments.size > 0) {
         for (const att of messageObj.attachments.values()) {
-          // Only include image attachments
+          // Handle images
           if (att.contentType && att.contentType.startsWith('image/')) {
             imageUrls.push(att.url);
+          }
+          // Handle text files
+          else if (att.size < 1000000 && (
+            att.contentType?.includes('text/') ||
+            att.contentType?.includes('pdf') ||
+            att.name?.endsWith('.txt') ||
+            att.name?.endsWith('.pdf') ||
+            att.name?.endsWith('.csv') ||
+            att.name?.endsWith('.json')
+          )) {
+            try {
+              const response = await fetch(att.url, { timeout: 5000 });
+              if (response.ok) {
+                const text = await response.text();
+                fileContent += `[File: ${att.name}]\n${text.substring(0, 1500)}\n\n`;
+              }
+            } catch (err) {
+              console.log(`Download ${att.name} failed: ${err.message}`);
+            }
           }
         }
       }
       
-      // Try Claude via Anthropic SDK
-      const claudeResponse = await getClaudeResponse(
-        `You are Asher AI, assistant for Southern Cities Enterprises. Keep response brief (1-2 sentences max for Discord). Be direct and actionable about acquisitions, deals, and properties. User message: "${content}"`,
-        imageUrls
-      );
+      // Try Claude via Anthropic SDK with increased timeout (120s)
+      const claudeResponse = await Promise.race([
+        getClaudeResponse(
+          `You are Asher AI, assistant for Southern Cities Enterprises. Keep response brief (1-2 sentences max for Discord). Be direct and actionable about acquisitions, deals, and properties. User message: "${content}"`,
+          imageUrls,
+          fileContent
+        ),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('timeout')), 120000)
+        )
+      ]).catch(err => {
+        if (err.message === 'timeout') {
+          console.log(`[Timeout] Claude took too long (>120s)`);
+          return '⏳ Still working on this...';
+        }
+        return null;
+      });
       
       if (claudeResponse && !claudeResponse.includes('unavailable')) {
-        return claudeResponse;
+        // Cap response length to prevent session bloat
+        return claudeResponse.substring(0, 2000);
       }
       
       // If Claude failed and no fallback allowed, return null (stay silent)
@@ -181,10 +224,9 @@ client.on('messageCreate', async (message) => {
         return null;
       }
       
-      // If Claude failed and no fallback allowed in private chats either, stay silent
-      // Only use fallback if explicitly enabled AND Claude is working
-      console.log(`[Silent] Claude failed - no fallback response`);
-      return null;
+      // Fallback: acknowledge the message so user knows bot is working
+      console.log(`[Fallback] Claude failed - using acknowledgment`);
+      return '👂 Still working on this...';
     };
 
     // Respond to DMs only
