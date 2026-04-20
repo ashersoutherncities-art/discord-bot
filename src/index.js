@@ -29,6 +29,7 @@ const AUTO_RESPOND_CHANNEL_IDS = [
   '1488204380074410034',
   '1488204382851039262',
   '1488937448938668122',
+  '1493982362374111284',
 ];
 
 // Channels where bot only responds when mentioned
@@ -36,7 +37,7 @@ const MENTION_ONLY_CHANNEL_IDS = [];
 
 console.log('🔧 Config loaded:');
 console.log(`   Discord Token: ${TOKEN ? '✓' : '✗'}`);
-console.log(`   Anthropic Key: ${process.env.ANTHROPIC_API_KEY ? '✓' : '✗'}`);
+console.log('   Response mode: local fallback only');
 console.log(`   Auto-respond channel IDs: ${AUTO_RESPOND_CHANNEL_IDS.join(', ')}`);
 
 function getSimpleResponse(userMessage = '', channelName = '') {
