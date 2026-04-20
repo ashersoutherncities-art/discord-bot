@@ -20,15 +20,26 @@ const BOT_NAME = 'Asher AI';
 const OWNER = 'Darius Walton / Southern Cities Enterprises';
 
 // Channels where bot responds to ALL messages without mentions
-const AUTO_RESPOND_CHANNELS = ['sci-acquisitions'];
+const AUTO_RESPOND_CHANNEL_IDS = [
+  '1485795982754189513',
+  '1488201697414086658',
+  '1488204374625878259',
+  '1488204375016079402',
+  '1488204375967928461',
+  '1488204377117298972',
+  '1488204378761597021',
+  '1488204380074410034',
+  '1488204382851039262',
+  '1488937448938668122',
+];
 
 // Channels where bot only responds when mentioned
-const MENTION_ONLY_CHANNELS = ['relationship-notes'];
+const MENTION_ONLY_CHANNEL_IDS = [];
 
 console.log('🔧 Config loaded:');
 console.log(`   Discord Token: ${TOKEN ? '✓' : '✗'}`);
 console.log(`   Anthropic Key: ${process.env.ANTHROPIC_API_KEY ? '✓' : '✗'}`);
-console.log(`   Auto-respond channels: ${AUTO_RESPOND_CHANNELS.join(', ')}`);
+console.log(`   Auto-respond channel IDs: ${AUTO_RESPOND_CHANNEL_IDS.join(', ')}`);
 
 // Get Claude response - supports text + image URLs + file content
 async function getClaudeResponse(userMessage, imageUrls = [], fileContent = '') {
@@ -243,12 +254,13 @@ client.on('messageCreate', async (message) => {
     if (message.guild) {
       const memberCount = message.channel.members ? message.channel.members.size : null;
       const channelName = message.channel.name || '';
-      const isAutoRespondChannel = AUTO_RESPOND_CHANNELS.includes(channelName);
-      const isMentionOnlyChannel = MENTION_ONLY_CHANNELS.includes(channelName);
+      const channelId = message.channel.id;
+      const isAutoRespondChannel = AUTO_RESPOND_CHANNEL_IDS.includes(channelId);
+      const isMentionOnlyChannel = MENTION_ONLY_CHANNEL_IDS.includes(channelId);
       const isPrivateGroupChat = memberCount === 2; // Just user + bot
       
       // Debug logging
-      console.log(`[DEBUG] Channel: #${channelName}, Members: ${memberCount}, Auto-respond: ${isAutoRespondChannel}, MentionOnly: ${isMentionOnlyChannel}, PrivateGroup: ${isPrivateGroupChat}`);
+      console.log(`[DEBUG] Channel: #${channelName} (${channelId}), Members: ${memberCount}, Auto-respond: ${isAutoRespondChannel}, MentionOnly: ${isMentionOnlyChannel}, PrivateGroup: ${isPrivateGroupChat}`);
       
       // PRIORITY 0: Mention-only channels - respond ONLY when mentioned (CHECK FIRST!)
       if (isMentionOnlyChannel) {
