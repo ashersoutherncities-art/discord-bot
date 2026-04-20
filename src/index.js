@@ -1,11 +1,9 @@
 import { Client, GatewayIntentBits, ChannelType, EmbedBuilder } from 'discord.js';
-import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import dotenv from 'dotenv';
 import { appendFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
-import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -41,61 +39,29 @@ console.log(`   Discord Token: ${TOKEN ? '✓' : '✗'}`);
 console.log(`   Anthropic Key: ${process.env.ANTHROPIC_API_KEY ? '✓' : '✗'}`);
 console.log(`   Auto-respond channel IDs: ${AUTO_RESPOND_CHANNEL_IDS.join(', ')}`);
 
-// Get Claude response - supports text + image URLs + file content
-async function getClaudeResponse(userMessage, imageUrls = [], fileContent = '') {
-  try {
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-    
-    // Build message content with text, images, and files
-    const content = [];
-    
-    // Add file content if present
-    if (fileContent) {
-      content.push({
-        type: 'text',
-        text: `[Attached file content]:\n${fileContent}\n\n---\n\n`,
-      });
-    }
-    
-    // Add text
-    if (userMessage) {
-      content.push({
-        type: 'text',
-        text: userMessage,
-      });
-    }
-    
-    // Add images
-    for (const url of imageUrls) {
-      content.push({
-        type: 'image',
-        source: {
-          type: 'url',
-          url: url,
-        },
-      });
-    }
-    
-    const response = await anthropic.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 200,
-      system: 'You are Asher AI for Southern Cities Enterprises. Keep responses brief (1-2 sentences max). Be direct about acquisitions and deals.',
-      messages: [{ role: 'user', content }],
-    });
-    
-    const text = response.content[0]?.type === 'text' ? response.content[0].text : null;
-    if (text) {
-      console.log(`[Claude] Success`);
-      return text;
-    }
-    return null;
-  } catch (error) {
-    console.log(`Claude API error: ${error.message}`);
-    return null;
+function getSimpleResponse(userMessage = '', channelName = '') {
+  const text = (userMessage || '').trim();
+  if (!text) return 'I saw your message. Send a little more detail and I will respond directly.';
+
+  const lower = text.toLowerCase();
+
+  if (lower.includes('permit')) {
+    return 'If this is permit-related, send the address, scope, and where the job stands now. I will help you figure out the next step.';
   }
+
+  if (lower.includes('quote') || lower.includes('price') || lower.includes('cost')) {
+    return 'Send the address, scope, photos if you have them, and your target timeline. That is the fastest way to get this priced correctly.';
+  }
+
+  if (lower.includes('inspection')) {
+    return 'Send the inspection report or the repair items you are looking at. I will help sort the next move.';
+  }
+
+  if (channelName === 'under-construction') {
+    return 'I am here. Send the job details, blocker, or question and I will respond.';
+  }
+
+  return 'Got it. Send the address, scope, photos, or the exact issue and I will help with the next step.';
 }
 
 // Ensure logs directory exists
@@ -172,66 +138,10 @@ client.on('messageCreate', async (message) => {
       isDM,
     });
 
-    // Generate response using Claude - supports images + files
-    const getResponse = async (content, messageObj, allowFallback = true) => {
-      // Extract image URLs and file content from attachments
-      const imageUrls = [];
-      let fileContent = '';
-      
-      if (messageObj && messageObj.attachments && messageObj.attachments.size > 0) {
-        for (const att of messageObj.attachments.values()) {
-          // Handle images
-          if (att.contentType && att.contentType.startsWith('image/')) {
-            imageUrls.push(att.url);
-          }
-          // Handle text files
-          else if (att.size < 1000000 && (
-            att.contentType?.includes('text/') ||
-            att.contentType?.includes('pdf') ||
-            att.name?.endsWith('.txt') ||
-            att.name?.endsWith('.pdf') ||
-            att.name?.endsWith('.csv') ||
-            att.name?.endsWith('.json')
-          )) {
-            try {
-              const response = await fetch(att.url, { timeout: 5000 });
-              if (response.ok) {
-                const text = await response.text();
-                fileContent += `[File: ${att.name}]\n${text.substring(0, 1500)}\n\n`;
-              }
-            } catch (err) {
-              console.log(`Download ${att.name} failed: ${err.message}`);
-            }
-          }
-        }
-      }
-      
-      // Try Claude via Anthropic SDK with increased timeout (120s)
-      const claudeResponse = await Promise.race([
-        getClaudeResponse(
-          `You are Asher AI, assistant for Southern Cities Enterprises. Keep response brief (1-2 sentences max for Discord). Be direct and actionable about acquisitions, deals, and properties. User message: "${content}"`,
-          imageUrls,
-          fileContent
-        ),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('timeout')), 120000)
-        )
-      ]).catch(err => {
-        if (err.message === 'timeout') {
-          console.log(`[Timeout] Claude took too long (>120s)`);
-          return '⏳ Still working on this...';
-        }
-        return null;
-      });
-      
-      if (claudeResponse && !claudeResponse.includes('unavailable')) {
-        // Cap response length to prevent session bloat
-        return claudeResponse.substring(0, 2000);
-      }
-      
-      // If Claude failed, stay silent (no fallback)
-      console.log(`[Silent] Claude failed - no fallback response`);
-      return null;
+    const getResponse = async (content, messageObj) => {
+      const channelName = messageObj?.channel?.name || '';
+      const response = getSimpleResponse(content, channelName);
+      return response.substring(0, 2000);
     };
 
     // Respond to DMs only
